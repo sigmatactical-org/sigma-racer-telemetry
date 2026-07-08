@@ -1,7 +1,7 @@
 //! Map between [`VehicleState`] and neutral M7 CAN signals.
 
 use crate::state::VehicleState;
-use sigma_racer_wingman_m7_can::{M7Signals, PerformanceMode};
+use sigma_racer_sidearm::{M7Signals, PerformanceMode};
 
 pub fn to_signals(state: &VehicleState) -> M7Signals {
     M7Signals {

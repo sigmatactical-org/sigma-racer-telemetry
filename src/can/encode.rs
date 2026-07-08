@@ -1,7 +1,7 @@
 //! Encode [`VehicleState`] as simulated CAN frames.
 
 use crate::state::VehicleState;
-use sigma_racer_wingman_m7_can as m7;
+use sigma_racer_sidearm as m7;
 
 use super::map::to_signals;
 

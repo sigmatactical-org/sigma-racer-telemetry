@@ -1,7 +1,7 @@
 //! Bridge between the shared M7 CAN codec and the telemetry [`VehicleState`].
 //!
 //! The CAN contract itself — message IDs, the `.dbc`, and the frame⇄signal
-//! codec — lives in [`sigma_racer_wingman_m7_can`]. This module only maps that
+//! codec — lives in [`sigma_racer_sidearm`]. This module only maps that
 //! crate's neutral [`M7Signals`] onto the `std`-side [`VehicleState`].
 
 mod decode;

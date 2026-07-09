@@ -10,6 +10,7 @@ mod map;
 
 pub use decode::decode_frame;
 pub use encode::encode_sim_frames;
+pub use map::from_signals;
 
 #[cfg(test)]
 mod tests {

@@ -4,10 +4,12 @@
 //! codec — lives in [`sigma_racer_sidearm`]. This module only maps that
 //! crate's neutral [`M7Signals`] onto the `std`-side [`VehicleState`].
 
+mod candump;
 mod decode;
 mod encode;
 mod map;
 
+pub use candump::{parse as parse_candump, CandumpFrame};
 pub use decode::decode_frame;
 pub use encode::encode_sim_frames;
 pub use map::from_signals;

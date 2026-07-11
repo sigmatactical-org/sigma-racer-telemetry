@@ -14,11 +14,11 @@ jobs:
       run:
         working-directory: embedded/sigma-racer-telemetry
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: embedded/sigma-racer-telemetry
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: sigmatactical-org/sigma-racer-sidearm
           path: embedded/sigma-racer-sidearm

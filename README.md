@@ -1,5 +1,7 @@
 # sigma-racer-telemetry
 
+[![CI](https://github.com/sigmatactical-org/sigma-racer-telemetry/actions/workflows/ci.yml/badge.svg)](https://github.com/sigmatactical-org/sigma-racer-telemetry/actions/workflows/ci.yml)
+
 VSS vehicle state, M7 CAN bridge, and NDJSON IPC for Sigma Racer cockpit services.
 
 ## Crate

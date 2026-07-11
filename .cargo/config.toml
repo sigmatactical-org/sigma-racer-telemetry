@@ -1,2 +1,2 @@
-[patch."ssh://git@github.com/sigmatactical-org/sigma-racer-sidearm.git"]
+[patch."https://github.com/sigmatactical-org/sigma-racer-sidearm.git"]
 sigma-racer-sidearm = { path = "../sigma-racer-sidearm" }

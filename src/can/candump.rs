@@ -58,7 +58,7 @@ pub fn parse(text: &str) -> Vec<CandumpFrame> {
 
 /// Decode an even-length hex string into at most 8 CAN payload bytes.
 fn parse_hex(s: &str) -> Option<Vec<u8>> {
-    if s.len() % 2 != 0 || s.len() > 16 {
+    if !s.len().is_multiple_of(2) || s.len() > 16 {
         return None;
     }
     let mut bytes = Vec::with_capacity(s.len() / 2);

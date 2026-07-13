@@ -9,7 +9,7 @@ mod decode;
 mod encode;
 mod map;
 
-pub use candump::{parse as parse_candump, CandumpFrame};
+pub use candump::{CandumpFrame, parse as parse_candump};
 pub use decode::decode_frame;
 pub use encode::encode_sim_frames;
 pub use map::from_signals;

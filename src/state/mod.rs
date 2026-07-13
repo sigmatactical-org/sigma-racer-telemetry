@@ -4,4 +4,4 @@ mod coerce;
 mod vehicle_state;
 mod vss;
 
-pub use vehicle_state::{VehicleState, REDLINE_RPM};
+pub use vehicle_state::{REDLINE_RPM, VehicleState};

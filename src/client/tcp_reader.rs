@@ -1,79 +1,72 @@
-//! Background reader thread for the telemetry Unix socket.
+//! Background reader thread for mTLS telemetry.
 
 use crate::protocol::Message;
-use std::io::{BufRead, BufReader, ErrorKind};
-use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use crate::tls::{CertPin, connect_tls, tls_read_timeout};
+use rustls::ClientConfig;
+use rustls::pki_types::ServerName;
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::SyncSender;
-use std::sync::mpsc::TrySendError;
+use std::sync::mpsc::{SyncSender, TrySendError};
 use std::thread;
 use std::time::Duration;
 
-/// Bound on queued messages before the reader starts dropping frames.
 pub const CHANNEL_CAPACITY: usize = 512;
-/// Backoff between reconnect attempts when the service is down.
 pub const RECONNECT_DELAY: Duration = Duration::from_millis(500);
-/// Read timeout so the reader thread periodically observes shutdown requests.
 pub const READ_TIMEOUT: Duration = Duration::from_millis(500);
-/// Upper bound on a single NDJSON frame.
 pub const MAX_LINE_BYTES: usize = 64 * 1024;
 
-/// Outcome of reading a single connection.
 enum Outcome {
     Stop,
     Reconnect,
 }
 
-pub fn configure(stream: &UnixStream) {
-    let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
-}
-
-pub fn spawn_reader(
-    path: PathBuf,
-    initial: Option<UnixStream>,
+pub fn spawn_tls_reader(
+    host: String,
+    port: u16,
+    config: Arc<ClientConfig>,
+    pin: Option<CertPin>,
+    server_name: ServerName<'static>,
     tx: SyncSender<Message>,
     alive: Arc<AtomicBool>,
 ) -> thread::JoinHandle<()> {
-    thread::spawn(move || run(path, initial, tx, alive))
+    thread::spawn(move || run(host, port, config, pin, server_name, tx, alive))
 }
 
 fn run(
-    path: PathBuf,
-    initial: Option<UnixStream>,
+    host: String,
+    port: u16,
+    config: Arc<ClientConfig>,
+    pin: Option<CertPin>,
+    server_name: ServerName<'static>,
     tx: SyncSender<Message>,
     alive: Arc<AtomicBool>,
 ) {
-    let mut stream = initial;
     while alive.load(Ordering::Relaxed) {
-        let connection = match stream.take() {
-            Some(s) => s,
-            None => match UnixStream::connect(&path) {
-                Ok(s) => {
-                    configure(&s);
-                    s
-                }
-                Err(_) => {
-                    thread::sleep(RECONNECT_DELAY);
-                    continue;
-                }
-            },
-        };
-
-        match read_stream(connection, &tx, &alive) {
-            Outcome::Stop => return,
-            Outcome::Reconnect => {
-                if alive.load(Ordering::Relaxed) {
-                    thread::sleep(RECONNECT_DELAY);
+        match connect_tls(&config, server_name.clone(), &host, port, pin.as_ref()) {
+            Ok(mut stream) => {
+                tls_read_timeout(&mut stream, READ_TIMEOUT);
+                match read_stream(stream, &tx, &alive) {
+                    Outcome::Stop => return,
+                    Outcome::Reconnect => {}
                 }
             }
+            Err(err) => {
+                eprintln!("telemetry: mTLS connect failed: {err}");
+            }
+        }
+        if alive.load(Ordering::Relaxed) {
+            thread::sleep(RECONNECT_DELAY);
         }
     }
 }
 
-fn read_stream(stream: UnixStream, tx: &SyncSender<Message>, alive: &Arc<AtomicBool>) -> Outcome {
-    let mut reader = BufReader::new(stream);
+fn read_stream<R: Read>(
+    mut stream: R,
+    tx: &SyncSender<Message>,
+    alive: &Arc<AtomicBool>,
+) -> Outcome {
+    let mut reader = BufReader::new(&mut stream);
     let mut line = String::new();
     loop {
         if !alive.load(Ordering::Relaxed) {

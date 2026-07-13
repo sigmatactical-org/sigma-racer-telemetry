@@ -15,7 +15,9 @@ pub fn json_i16(v: &Value) -> i16 {
 }
 
 pub fn json_i32(v: &Value) -> i32 {
-    v.as_i64().unwrap_or(0).clamp(i32::MIN as i64, i32::MAX as i64) as i32
+    v.as_i64()
+        .unwrap_or(0)
+        .clamp(i32::MIN as i64, i32::MAX as i64) as i32
 }
 
 pub fn json_u8(v: &Value) -> u8 {

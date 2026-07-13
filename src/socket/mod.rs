@@ -2,4 +2,4 @@
 
 mod permissions;
 
-pub use permissions::{bind_listener, prepare_socket_path, RUNTIME_DIR_MODE, SOCKET_MODE};
+pub use permissions::{RUNTIME_DIR_MODE, SOCKET_MODE, bind_listener, prepare_socket_path};

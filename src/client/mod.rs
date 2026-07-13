@@ -7,16 +7,21 @@
 //! periodic full snapshots, so the UI re-syncs on the next one).
 
 mod reader;
+mod tcp;
+mod tcp_reader;
 
 use crate::protocol::{Message, SOCKET_PATH};
-use reader::{configure, spawn_reader, CHANNEL_CAPACITY};
+use reader::{CHANNEL_CAPACITY, configure, spawn_reader};
 use std::io::Error;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
-use std::sync::Arc;
 use std::thread::JoinHandle;
+
+pub use tcp::{DEFAULT_TCP_PORT as TCP_DEFAULT_PORT, TcpTelemetryClient, default_port};
+pub use tcp_reader::RECONNECT_DELAY;
 
 pub struct TelemetryClient {
     rx: Receiver<Message>,

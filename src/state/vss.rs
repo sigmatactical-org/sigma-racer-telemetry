@@ -1,18 +1,15 @@
 //! VSS path mapping for [`VehicleState`](super::vehicle_state::VehicleState).
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use super::coerce::{json_bool, json_f32, json_i16, json_i32, json_i8, json_u8};
+use super::coerce::{json_bool, json_f32, json_i8, json_i16, json_i32, json_u8};
 use super::vehicle_state::VehicleState;
 
 impl VehicleState {
     pub fn to_vss_map(&self) -> HashMap<String, Value> {
         HashMap::from([
-            (
-                "Vehicle.Speed".into(),
-                json!(self.speed.round() as i64),
-            ),
+            ("Vehicle.Speed".into(), json!(self.speed.round() as i64)),
             (
                 "Vehicle.Powertrain.CombustionEngine.Speed".into(),
                 json!(self.rpm.round() as i64),

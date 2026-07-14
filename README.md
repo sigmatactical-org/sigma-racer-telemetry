@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sigmatactical-org/sigma-racer-telemetry/actions/workflows/ci.yml/badge.svg)](https://github.com/sigmatactical-org/sigma-racer-telemetry/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![MSRV](https://img.shields.io/badge/MSRV-1.92.0-blue.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/MSRV-1.97.0-blue.svg)](https://www.rust-lang.org)
 
 VSS vehicle state, M7 CAN bridge, and NDJSON IPC for Sigma Racer cockpit services.
 

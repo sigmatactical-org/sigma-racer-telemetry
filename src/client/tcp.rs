@@ -1,20 +1,22 @@
 //! mTLS telemetry subscriber (Mechanic / shop tools over WiFi).
 
-use super::tcp_reader::{CHANNEL_CAPACITY, spawn_tls_reader};
+use super::line_pump::CHANNEL_CAPACITY;
+use super::subscription::Subscription;
+use super::tcp_reader::spawn_tls_reader;
 use crate::protocol::Message;
 use crate::tls::{TlsRole, client_config, load_material, server_name_for_host};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver};
-use std::thread::JoinHandle;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc;
 
-/// Default TCP port for Wingman telemetry relay (TLS wrapper).
-pub const DEFAULT_TCP_PORT: u16 = 7357;
+pub use crate::protocol::DEFAULT_TCP_PORT;
 
+/// Subscriber for the Wingman relay over TLS 1.3 + mTLS.
+///
+/// The reader runs on its own thread and auto-reconnects; dropping the client
+/// asks the thread to exit.
 pub struct TcpTelemetryClient {
-    rx: Receiver<Message>,
-    alive: Arc<AtomicBool>,
-    _thread: JoinHandle<()>,
+    inner: Subscription,
 }
 
 impl TcpTelemetryClient {
@@ -28,35 +30,30 @@ impl TcpTelemetryClient {
 
         let (tx, rx) = mpsc::sync_channel(CHANNEL_CAPACITY);
         let alive = Arc::new(AtomicBool::new(true));
-        let alive_thread = Arc::clone(&alive);
         let host = host.to_string();
-        let thread = spawn_tls_reader(host, port, config, pin, server_name, tx, alive_thread);
+        let thread = spawn_tls_reader(host, port, config, pin, server_name, tx, Arc::clone(&alive));
         Ok(Self {
-            rx,
-            alive,
-            _thread: thread,
+            inner: Subscription::new(rx, alive, thread),
         })
     }
 
+    /// [`TcpTelemetryClient::connect`] on [`default_port`].
     pub fn connect_default(host: &str) -> Result<Self, String> {
         Self::connect(host, default_port())
     }
 
+    /// Take the next queued message, if any, without blocking.
     pub fn try_recv(&self) -> Option<Message> {
-        self.rx.try_recv().ok()
+        self.inner.try_recv()
     }
 
+    /// Iterate over every currently queued message without blocking.
     pub fn drain(&self) -> impl Iterator<Item = Message> + '_ {
-        std::iter::from_fn(|| self.try_recv())
+        self.inner.drain()
     }
 }
 
-impl Drop for TcpTelemetryClient {
-    fn drop(&mut self) {
-        self.alive.store(false, Ordering::Relaxed);
-    }
-}
-
+/// The relay port: `TELEMETRY_TCP_PORT` or [`DEFAULT_TCP_PORT`].
 pub fn default_port() -> u16 {
     std::env::var("TELEMETRY_TCP_PORT")
         .ok()
@@ -64,6 +61,7 @@ pub fn default_port() -> u16 {
         .unwrap_or(DEFAULT_TCP_PORT)
 }
 
+/// Install the ring crypto provider once per process (idempotent).
 fn install_crypto() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }

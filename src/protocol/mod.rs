@@ -5,7 +5,7 @@ mod diff;
 mod message;
 mod parse_error;
 
-pub use constants::{PROTOCOL_VERSION, SNAPSHOT_INTERVAL_MS, SOCKET_PATH};
+pub use constants::{DEFAULT_TCP_PORT, PROTOCOL_VERSION, SNAPSHOT_INTERVAL_MS, SOCKET_PATH};
 pub use diff::diff_vss;
 pub use message::{Message, now_iso};
 pub use parse_error::ParseError;

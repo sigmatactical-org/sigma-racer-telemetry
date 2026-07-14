@@ -8,6 +8,7 @@ use std::fmt;
 pub struct CertPin([u8; 32]);
 
 impl CertPin {
+    /// Parse a 64-char hex SHA-256 into a pin.
     pub fn parse_hex(hex: &str) -> Result<Self, String> {
         let hex = hex.trim().trim_start_matches("sha256:");
         if hex.len() != 64 {
@@ -21,6 +22,7 @@ impl CertPin {
         Ok(Self(out))
     }
 
+    /// Pin of a certificate: SHA-256 over its DER encoding.
     pub fn from_cert_der(cert: &CertificateDer<'_>) -> Self {
         use sha2::{Digest, Sha256};
         let digest = Sha256::digest(cert.as_ref());
@@ -39,6 +41,7 @@ impl fmt::Display for CertPin {
     }
 }
 
+/// Check the server leaf certificate against the expected pin.
 pub fn verify_server_pin(certs: &[CertificateDer<'_>], pin: &CertPin) -> Result<(), String> {
     let leaf = certs
         .first()

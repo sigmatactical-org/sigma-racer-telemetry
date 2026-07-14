@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+/// XSR900 GP redline; drives the `at_redline` derived flag.
 pub const REDLINE_RPM: f32 = 11_250.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -35,6 +36,7 @@ pub struct VehicleState {
 }
 
 impl VehicleState {
+    /// Engine-off defaults (all gauges at rest).
     pub fn idle() -> Self {
         Self {
             speed: 0.0,
@@ -64,6 +66,7 @@ impl VehicleState {
         }
     }
 
+    /// Recompute derived fields (`at_redline`, …) after raw updates.
     pub fn refresh_derived(&mut self) {
         self.at_redline = self.rpm >= REDLINE_RPM || self.redline_can;
     }

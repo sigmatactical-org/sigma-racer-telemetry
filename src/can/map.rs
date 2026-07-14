@@ -3,6 +3,7 @@
 use crate::state::VehicleState;
 use sigma_racer_sidearm::{M7Signals, PerformanceMode};
 
+/// Project the VSS state onto the M7 wire signal set (encode direction).
 pub fn to_signals(state: &VehicleState) -> M7Signals {
     M7Signals {
         engine_rpm: state.rpm,
@@ -28,6 +29,7 @@ pub fn to_signals(state: &VehicleState) -> M7Signals {
     }
 }
 
+/// Apply decoded M7 wire signals to the VSS state (decode direction).
 pub fn from_signals(s: &M7Signals, state: &mut VehicleState) {
     state.rpm = s.engine_rpm;
     state.coolant_c = s.coolant_c;

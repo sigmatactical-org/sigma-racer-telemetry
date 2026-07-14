@@ -1,62 +1,33 @@
 //! Fan-out NDJSON lines to connected mTLS clients.
 
+use crate::io::BacklogWriter;
 use crate::tls::{TlsServerStream, tls_set_nonblocking};
-use std::collections::VecDeque;
-use std::io::{ErrorKind, Write};
 
-const MAX_CLIENT_BACKLOG: usize = 256 * 1024;
-
-struct Client {
-    stream: TlsServerStream,
-    pending: VecDeque<u8>,
-}
-
-impl Client {
-    fn enqueue_and_flush(&mut self, bytes: &[u8]) -> bool {
-        self.pending.extend(bytes.iter().copied());
-        self.flush()
-    }
-
-    fn flush(&mut self) -> bool {
-        while !self.pending.is_empty() {
-            let (head, _) = self.pending.as_slices();
-            match self.stream.write(head) {
-                Ok(0) => return false,
-                Ok(n) => {
-                    self.pending.drain(..n);
-                }
-                Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                    return self.pending.len() <= MAX_CLIENT_BACKLOG;
-                }
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(_) => return false,
-            }
-        }
-        true
-    }
-}
-
+/// Broadcasts NDJSON lines to every connected mTLS client, dropping clients
+/// whose backlog exceeds the [`crate::io::MAX_BACKLOG`] bound.
 pub struct TlsLineBroadcaster {
-    clients: Vec<Client>,
+    clients: Vec<BacklogWriter<TlsServerStream>>,
 }
 
 impl TlsLineBroadcaster {
+    /// Create a broadcaster with no clients.
     pub fn new() -> Self {
         Self {
             clients: Vec::new(),
         }
     }
 
+    /// Adopt a freshly handshaken stream; dropped if it cannot be switched to
+    /// non-blocking mode.
     pub fn add(&mut self, mut stream: TlsServerStream) {
         if tls_set_nonblocking(&mut stream, true).is_err() {
             return;
         }
-        self.clients.push(Client {
-            stream,
-            pending: VecDeque::new(),
-        });
+        self.clients.push(BacklogWriter::new(stream));
     }
 
+    /// Send one NDJSON line (newline appended if missing) to every client,
+    /// dropping any that fall behind.
     pub fn send_line(&mut self, line: &str) {
         let mut bytes = line.to_string();
         if !bytes.ends_with('\n') {
@@ -72,6 +43,3 @@ impl Default for TlsLineBroadcaster {
         Self::new()
     }
 }
-
-// Backward-compatible alias for relay module.
-pub type TcpLineBroadcaster = TlsLineBroadcaster;

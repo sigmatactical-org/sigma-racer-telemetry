@@ -29,6 +29,7 @@ pub struct Message {
 }
 
 impl Message {
+    /// Full-state snapshot message.
     pub fn snapshot(seq: u64, state: &VehicleState) -> Self {
         Self {
             version: PROTOCOL_VERSION.into(),
@@ -43,6 +44,7 @@ impl Message {
         }
     }
 
+    /// Delta update carrying only changed VSS entries.
     pub fn signal_update(seq: u64, data: HashMap<String, Value>) -> Self {
         Self {
             version: PROTOCOL_VERSION.into(),
@@ -57,6 +59,7 @@ impl Message {
         }
     }
 
+    /// Liveness message sent when nothing else is flowing.
     pub fn heartbeat(seq: u64, uptime_ms: u64) -> Self {
         Self {
             version: PROTOCOL_VERSION.into(),
@@ -71,14 +74,17 @@ impl Message {
         }
     }
 
+    /// Serialize as one NDJSON line (no trailing newline).
     pub fn to_line(&self) -> String {
         serde_json::to_string(self).expect("telemetry message serializes")
     }
 
+    /// Parse one NDJSON line without semantic validation.
     pub fn parse_line(line: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(line.trim())
     }
 
+    /// Parse one NDJSON line and validate version/type/length bounds.
     pub fn parse_validated(line: &str) -> Result<Self, ParseError> {
         let msg = Self::parse_line(line).map_err(ParseError::Json)?;
         if msg.version != PROTOCOL_VERSION {
@@ -90,11 +96,13 @@ impl Message {
         }
     }
 
+    /// The VSS payload for snapshot/update messages, `None` otherwise.
     pub fn vss_data(&self) -> Option<&HashMap<String, Value>> {
         self.data.as_ref()
     }
 }
 
+/// Current UTC time in RFC 3339 with milliseconds (message timestamps).
 pub fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
 }

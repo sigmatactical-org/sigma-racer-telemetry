@@ -7,6 +7,7 @@ use super::coerce::{json_bool, json_f32, json_i8, json_i16, json_i32, json_u8};
 use super::vehicle_state::VehicleState;
 
 impl VehicleState {
+    /// Render the full state as VSS path → JSON value entries.
     pub fn to_vss_map(&self) -> HashMap<String, Value> {
         HashMap::from([
             ("Vehicle.Speed".into(), json!(self.speed.round() as i64)),
@@ -77,6 +78,7 @@ impl VehicleState {
         ])
     }
 
+    /// Apply one VSS entry; unknown paths are ignored.
     pub fn apply_vss(&mut self, path: &str, value: &Value) {
         match path {
             "Vehicle.Speed" => self.speed = json_f32(value),
@@ -112,6 +114,7 @@ impl VehicleState {
         }
     }
 
+    /// Apply a batch of VSS entries and refresh derived fields.
     pub fn apply_vss_map(&mut self, data: &HashMap<String, Value>) {
         for (path, value) in data {
             self.apply_vss(path, value);

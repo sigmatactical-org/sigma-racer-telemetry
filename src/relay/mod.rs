@@ -2,7 +2,6 @@
 
 mod broadcaster;
 
-use crate::protocol::SOCKET_PATH;
 use crate::tls::{TlsServerStream, accept_tls};
 use broadcaster::TlsLineBroadcaster;
 use rustls::ServerConfig;
@@ -16,10 +15,10 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-pub use broadcaster::{TcpLineBroadcaster, TlsLineBroadcaster as Broadcaster};
+pub use broadcaster::TlsLineBroadcaster as Broadcaster;
 
 /// Default TCP port for shop-tool telemetry (Mechanic). Traffic is TLS 1.3 + mTLS only.
-pub const DEFAULT_TCP_PORT: u16 = 7357;
+pub use crate::protocol::DEFAULT_TCP_PORT;
 
 const RECONNECT_DELAY: Duration = Duration::from_millis(500);
 const READ_TIMEOUT: Duration = Duration::from_millis(500);
@@ -121,14 +120,12 @@ fn read_unix_lines(stream: UnixStream, line_tx: &mpsc::Sender<String>) -> io::Re
     }
 }
 
+/// The relay's telemetry source: same resolution as [`crate::client::default_socket`].
 pub fn default_socket_path() -> PathBuf {
-    std::env::var("SIGMA_RACER_WINGMAN_TELEMETRY_SOCKET")
-        .ok()
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(SOCKET_PATH))
+    PathBuf::from(crate::client::default_socket())
 }
 
+/// The relay bind address: `0.0.0.0` on `TELEMETRY_RELAY_PORT` or the default port.
 pub fn default_listen_addr() -> String {
     let port = std::env::var("TELEMETRY_RELAY_PORT")
         .ok()

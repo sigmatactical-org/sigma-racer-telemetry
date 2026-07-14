@@ -2,6 +2,7 @@
 
 pub mod can;
 pub mod client;
+pub mod io;
 pub mod m7_dbc;
 pub mod protocol;
 pub mod relay;

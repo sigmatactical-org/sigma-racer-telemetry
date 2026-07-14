@@ -1,5 +1,7 @@
 //! mTLS relay daemon — forwards local Unix telemetry to authenticated WiFi clients.
 
+#![forbid(unsafe_code)]
+
 use sigma_racer_telemetry::relay::{default_listen_addr, default_socket_path, run};
 use sigma_racer_telemetry::tls::{TlsRole, load_material, server_config};
 

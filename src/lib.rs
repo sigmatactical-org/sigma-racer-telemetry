@@ -1,5 +1,7 @@
 //! Sigma Racer vehicle telemetry — VSS state, CAN decode (M7 draft), JSON/NDJSON IPC.
 
+#![forbid(unsafe_code)]
+
 pub mod can;
 pub mod client;
 pub mod io;

@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod anomaly;
 pub mod can;
 pub mod client;
 pub mod io;
@@ -12,6 +13,7 @@ pub mod socket;
 pub mod state;
 pub mod tls;
 
+pub use anomaly::{AnomalyEngine, AnomalyEvent, Edge, Severity, parse_ts_millis};
 pub use client::TelemetryClient;
 pub use client::{TCP_DEFAULT_PORT, TcpTelemetryClient, default_port};
 pub use protocol::{Message, ParseError, SNAPSHOT_INTERVAL_MS, SOCKET_PATH};

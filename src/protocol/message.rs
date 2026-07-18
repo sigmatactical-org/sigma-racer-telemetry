@@ -59,6 +59,31 @@ impl Message {
         }
     }
 
+    /// Edge-triggered event (anomaly raise/clear, mode change). Unlike the
+    /// self-stamping constructors, `ts` is explicit: an event carries the
+    /// timestamp of the sample that triggered it, so replayed sessions
+    /// reproduce identical events.
+    pub fn event(
+        seq: u64,
+        ts: String,
+        event: &str,
+        vss: &str,
+        value: Value,
+        data: HashMap<String, Value>,
+    ) -> Self {
+        Self {
+            version: PROTOCOL_VERSION.into(),
+            msg: "Event".into(),
+            ts,
+            seq,
+            data: Some(data),
+            event: Some(event.into()),
+            vss: Some(vss.into()),
+            value: Some(value),
+            uptime_ms: None,
+        }
+    }
+
     /// Liveness message sent when nothing else is flowing.
     pub fn heartbeat(seq: u64, uptime_ms: u64) -> Self {
         Self {
@@ -91,7 +116,7 @@ impl Message {
             return Err(ParseError::UnsupportedVersion(msg.version));
         }
         match msg.msg.as_str() {
-            "Snapshot" | "SignalUpdate" | "Heartbeat" => Ok(msg),
+            "Snapshot" | "SignalUpdate" | "Heartbeat" | "Event" => Ok(msg),
             other => Err(ParseError::UnknownKind(other.into())),
         }
     }
@@ -125,5 +150,39 @@ mod tests {
     fn accepts_snapshot() {
         let line = Message::snapshot(1, &VehicleState::idle()).to_line();
         assert!(Message::parse_validated(&line).is_ok());
+    }
+
+    #[test]
+    fn event_round_trips_through_validation() {
+        let mut data = HashMap::new();
+        data.insert("state".to_string(), Value::from("raised"));
+        data.insert("severity".to_string(), Value::from("CRITICAL"));
+        data.insert("message".to_string(), Value::from("Coolant 118 °C"));
+        let msg = Message::event(
+            7,
+            "2026-07-18T10:00:00.000Z".into(),
+            "coolant_overheat",
+            "Vehicle.OBD.CoolantTemperature",
+            Value::from(118),
+            data,
+        );
+        let parsed = Message::parse_validated(&msg.to_line()).expect("event parses");
+        assert_eq!(parsed.msg, "Event");
+        assert_eq!(parsed.event.as_deref(), Some("coolant_overheat"));
+        assert_eq!(parsed.ts, "2026-07-18T10:00:00.000Z");
+        assert_eq!(parsed.value, Some(Value::from(118)));
+        assert_eq!(
+            parsed.data.as_ref().and_then(|d| d.get("state")),
+            Some(&Value::from("raised"))
+        );
+    }
+
+    #[test]
+    fn still_rejects_unknown_kind() {
+        let line = r#"{"version":"0.1","msg":"Bogus","ts":"t","seq":1}"#;
+        match Message::parse_validated(line) {
+            Err(ParseError::UnknownKind(k)) => assert_eq!(k, "Bogus"),
+            other => panic!("expected unknown kind, got {other:?}"),
+        }
     }
 }

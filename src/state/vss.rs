@@ -1,124 +1,202 @@
 //! VSS path mapping for [`VehicleState`](super::vehicle_state::VehicleState).
+//!
+//! One [`VssBinding`] is the single source of truth for which state field maps
+//! to which VSS path and how its value converts in both directions. The
+//! `to_vss_map` / `apply_vss` / `apply_vss_map` methods delegate to it, so the
+//! encode and decode sides can no longer drift apart (the previous hand-listed
+//! tables had to be kept in sync by hand, and JSON coercion lived in a separate
+//! `coerce` module — both now subsumed by vss-map).
 
-use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
-use super::coerce::{json_bool, json_f32, json_i8, json_i16, json_i32, json_u8};
+use serde_json::Value;
+use vss_map::{VssBinding, VssValue};
+
 use super::vehicle_state::VehicleState;
+
+static BINDING: OnceLock<VssBinding<VehicleState>> = OnceLock::new();
+
+/// The shared state↔VSS binding, built once.
+pub(crate) fn binding() -> &'static VssBinding<VehicleState> {
+    BINDING.get_or_init(build_binding)
+}
+
+fn build_binding() -> VssBinding<VehicleState> {
+    let mut b = VssBinding::new();
+    b.bind(
+        "Vehicle.Speed",
+        |s: &VehicleState| VssValue::Int(s.speed.round() as i64),
+        |s, v| s.speed = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Powertrain.CombustionEngine.Speed",
+        |s: &VehicleState| VssValue::Int(s.rpm.round() as i64),
+        |s, v| s.rpm = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Powertrain.Transmission.CurrentGear",
+        |s: &VehicleState| VssValue::Int(s.gear as i64),
+        |s, v| s.gear = v.as_i8(),
+    )
+    .bind(
+        "Vehicle.Powertrain.CombustionEngine.IsRedline",
+        |s: &VehicleState| VssValue::Bool(s.at_redline),
+        // Derived from rpm + redline_can in refresh_derived; not restorable.
+        |_s, _v| {},
+    )
+    .bind(
+        "Vehicle.Powertrain.CombustionEngine.ThrottlePosition",
+        |s: &VehicleState| VssValue::Float(s.throttle_pct as f64),
+        |s, v| s.throttle_pct = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Body.IsSideStandEngaged",
+        |s: &VehicleState| VssValue::Bool(s.side_stand),
+        |s, v| s.side_stand = v.as_bool(),
+    )
+    .bind(
+        "Vehicle.Powertrain.Transmission.PerformanceMode",
+        |s: &VehicleState| VssValue::Text(s.riding_mode.clone()),
+        |s, v| {
+            if let Some(label) = v.as_str() {
+                s.riding_mode = label.to_owned();
+            }
+        },
+    )
+    .bind(
+        "Vehicle.FuelSystem.Level",
+        |s: &VehicleState| VssValue::Float(s.fuel_pct as f64),
+        |s, v| s.fuel_pct = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.OBD.CoolantTemperature",
+        |s: &VehicleState| VssValue::Int(s.coolant_c as i64),
+        |s, v| s.coolant_c = v.as_i16(),
+    )
+    .bind(
+        "Vehicle.OBD.OilTemperature",
+        |s: &VehicleState| VssValue::Int(s.oil_c as i64),
+        |s, v| s.oil_c = v.as_i16(),
+    )
+    .bind(
+        "Vehicle.TraveledDistance",
+        |s: &VehicleState| VssValue::Float(s.odometer as f64),
+        |s, v| s.odometer = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.TripMeter1",
+        |s: &VehicleState| VssValue::Float(s.trip1 as f64),
+        |s, v| s.trip1 = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.TripMeter2",
+        |s: &VehicleState| VssValue::Float(s.trip2 as f64),
+        |s, v| s.trip2 = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Acceleration.Lateral",
+        |s: &VehicleState| VssValue::Float(s.lean_angle as f64),
+        |s, v| s.lean_angle = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Acceleration.Longitudinal",
+        |s: &VehicleState| VssValue::Float(s.gforce as f64),
+        |s, v| s.gforce = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.ElectricalSystem.Battery.Voltage",
+        |s: &VehicleState| VssValue::Float(s.battery_v as f64),
+        |s, v| s.battery_v = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.Cabin.Infotainment.CanBusLoad",
+        |s: &VehicleState| VssValue::Uint(s.can_load as u64),
+        |s, v| s.can_load = v.as_u8(),
+    )
+    .bind(
+        "Vehicle.OBD.DTCCount",
+        |s: &VehicleState| VssValue::Uint(s.dtc as u64),
+        |s, v| s.dtc = v.as_u8(),
+    )
+    .bind(
+        "Vehicle.ADAS.ABS.IsActive",
+        |s: &VehicleState| VssValue::Bool(s.abs_active),
+        |s, v| s.abs_active = v.as_bool(),
+    )
+    .bind(
+        "Vehicle.ADAS.TCS.IsActive",
+        |s: &VehicleState| VssValue::Bool(s.tc_active),
+        |s, v| s.tc_active = v.as_bool(),
+    )
+    .bind(
+        "Vehicle.CurrentLocation.Heading",
+        |s: &VehicleState| VssValue::Int(s.heading.round() as i64),
+        |s, v| s.heading = v.as_f32(),
+    )
+    .bind(
+        "Vehicle.CurrentLocation.Altitude",
+        |s: &VehicleState| VssValue::Int(s.elevation as i64),
+        |s, v| s.elevation = v.as_i32(),
+    )
+    .bind(
+        "Vehicle.Service.SignalsLive",
+        |s: &VehicleState| VssValue::Bool(s.signals_live),
+        |s, v| s.signals_live = v.as_bool(),
+    );
+    b
+}
 
 impl VehicleState {
     /// Render the full state as VSS path → JSON value entries.
     pub fn to_vss_map(&self) -> HashMap<String, Value> {
-        HashMap::from([
-            ("Vehicle.Speed".into(), json!(self.speed.round() as i64)),
-            (
-                "Vehicle.Powertrain.CombustionEngine.Speed".into(),
-                json!(self.rpm.round() as i64),
-            ),
-            (
-                "Vehicle.Powertrain.Transmission.CurrentGear".into(),
-                json!(self.gear),
-            ),
-            (
-                "Vehicle.Powertrain.CombustionEngine.IsRedline".into(),
-                json!(self.at_redline),
-            ),
-            (
-                "Vehicle.Powertrain.CombustionEngine.ThrottlePosition".into(),
-                json!(self.throttle_pct),
-            ),
-            (
-                "Vehicle.Body.IsSideStandEngaged".into(),
-                json!(self.side_stand),
-            ),
-            (
-                "Vehicle.Powertrain.Transmission.PerformanceMode".into(),
-                json!(self.riding_mode),
-            ),
-            ("Vehicle.FuelSystem.Level".into(), json!(self.fuel_pct)),
-            (
-                "Vehicle.OBD.CoolantTemperature".into(),
-                json!(self.coolant_c),
-            ),
-            ("Vehicle.OBD.OilTemperature".into(), json!(self.oil_c)),
-            ("Vehicle.TraveledDistance".into(), json!(self.odometer)),
-            ("Vehicle.TripMeter1".into(), json!(self.trip1)),
-            ("Vehicle.TripMeter2".into(), json!(self.trip2)),
-            (
-                "Vehicle.Acceleration.Lateral".into(),
-                json!(self.lean_angle),
-            ),
-            (
-                "Vehicle.Acceleration.Longitudinal".into(),
-                json!(self.gforce),
-            ),
-            (
-                "Vehicle.ElectricalSystem.Battery.Voltage".into(),
-                json!(self.battery_v),
-            ),
-            (
-                "Vehicle.Cabin.Infotainment.CanBusLoad".into(),
-                json!(self.can_load),
-            ),
-            ("Vehicle.OBD.DTCCount".into(), json!(self.dtc)),
-            ("Vehicle.ADAS.ABS.IsActive".into(), json!(self.abs_active)),
-            ("Vehicle.ADAS.TCS.IsActive".into(), json!(self.tc_active)),
-            (
-                "Vehicle.CurrentLocation.Heading".into(),
-                json!(self.heading.round() as i64),
-            ),
-            (
-                "Vehicle.CurrentLocation.Altitude".into(),
-                json!(self.elevation),
-            ),
-            (
-                "Vehicle.Service.SignalsLive".into(),
-                json!(self.signals_live),
-            ),
-        ])
+        binding().to_json_map(self)
     }
 
     /// Apply one VSS entry; unknown paths are ignored.
     pub fn apply_vss(&mut self, path: &str, value: &Value) {
-        match path {
-            "Vehicle.Speed" => self.speed = json_f32(value),
-            "Vehicle.Powertrain.CombustionEngine.Speed" => self.rpm = json_f32(value),
-            "Vehicle.Powertrain.Transmission.CurrentGear" => self.gear = json_i8(value),
-            "Vehicle.Powertrain.CombustionEngine.IsRedline" => {}
-            "Vehicle.Powertrain.CombustionEngine.ThrottlePosition" => {
-                self.throttle_pct = json_f32(value)
-            }
-            "Vehicle.Body.IsSideStandEngaged" => self.side_stand = json_bool(value),
-            "Vehicle.Powertrain.Transmission.PerformanceMode" => {
-                if let Some(s) = value.as_str() {
-                    self.riding_mode = s.into();
-                }
-            }
-            "Vehicle.FuelSystem.Level" => self.fuel_pct = json_f32(value),
-            "Vehicle.OBD.CoolantTemperature" => self.coolant_c = json_i16(value),
-            "Vehicle.OBD.OilTemperature" => self.oil_c = json_i16(value),
-            "Vehicle.TraveledDistance" => self.odometer = json_f32(value),
-            "Vehicle.TripMeter1" => self.trip1 = json_f32(value),
-            "Vehicle.TripMeter2" => self.trip2 = json_f32(value),
-            "Vehicle.Acceleration.Lateral" => self.lean_angle = json_f32(value),
-            "Vehicle.Acceleration.Longitudinal" => self.gforce = json_f32(value),
-            "Vehicle.ElectricalSystem.Battery.Voltage" => self.battery_v = json_f32(value),
-            "Vehicle.Cabin.Infotainment.CanBusLoad" => self.can_load = json_u8(value),
-            "Vehicle.OBD.DTCCount" => self.dtc = json_u8(value),
-            "Vehicle.ADAS.ABS.IsActive" => self.abs_active = json_bool(value),
-            "Vehicle.ADAS.TCS.IsActive" => self.tc_active = json_bool(value),
-            "Vehicle.CurrentLocation.Heading" => self.heading = json_f32(value),
-            "Vehicle.CurrentLocation.Altitude" => self.elevation = json_i32(value),
-            "Vehicle.Service.SignalsLive" => self.signals_live = json_bool(value),
-            _ => {}
-        }
+        binding().apply_json(self, path, value);
     }
 
     /// Apply a batch of VSS entries and refresh derived fields.
     pub fn apply_vss_map(&mut self, data: &HashMap<String, Value>) {
-        for (path, value) in data {
-            self.apply_vss(path, value);
-        }
+        binding().apply_json_map(self, data);
         self.refresh_derived();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vss_map::VssCatalog;
+
+    #[test]
+    fn every_bound_path_exists_in_the_catalog() {
+        let catalog =
+            VssCatalog::from_vspec_str(include_str!("../../tests/data/sigma-cluster.vspec"))
+                .expect("vspec must parse");
+        let missing = binding().validate_against(&catalog);
+        assert!(
+            missing.is_empty(),
+            "state binds VSS paths absent from the catalog: {missing:?}"
+        );
+    }
+
+    #[test]
+    fn state_round_trips_through_the_binding() {
+        let mut state = VehicleState::idle();
+        state.speed = 88.0;
+        state.gear = 4;
+        state.riding_mode = "TRACK".into();
+        state.coolant_c = 91;
+
+        let map = state.to_vss_map();
+        let mut restored = VehicleState::idle();
+        restored.apply_vss_map(&map);
+
+        assert_eq!(restored.speed, 88.0);
+        assert_eq!(restored.gear, 4);
+        assert_eq!(restored.riding_mode, "TRACK");
+        assert_eq!(restored.coolant_c, 91);
     }
 }

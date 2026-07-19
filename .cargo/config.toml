@@ -1,2 +1,5 @@
 [patch."https://github.com/sigmatactical-org/sigma-racer-sidearm.git"]
 sigma-racer-sidearm = { path = "../sigma-racer-sidearm" }
+
+[patch."https://github.com/sigmatactical-org/vss-map.git"]
+vss-map = { path = "../vss-map" }

@@ -138,12 +138,11 @@ fn build_binding() -> VssBinding<VehicleState> {
         "Vehicle.CurrentLocation.Altitude",
         |s: &VehicleState| VssValue::Int(s.elevation as i64),
         |s, v| s.elevation = v.as_i32(),
-    )
-    .bind(
-        "Vehicle.Service.SignalsLive",
-        |s: &VehicleState| VssValue::Bool(s.signals_live),
-        |s, v| s.signals_live = v.as_bool(),
     );
+    // Vehicle.Service.SignalsLive is intentionally NOT bound: per-signal
+    // freshness now travels in the message `avail` map (see
+    // crate::availability), not as a global VSS boolean. `signals_live`
+    // survives only as an internal input to the staleness detector.
     b
 }
 
@@ -162,6 +161,14 @@ impl VehicleState {
     pub fn apply_vss_map(&mut self, data: &HashMap<String, Value>) {
         binding().apply_json_map(self, data);
         self.refresh_derived();
+    }
+
+    /// Update the internal `signals_live` rollup from a message's sparse
+    /// availability map (the per-signal replacement for the retired
+    /// `Vehicle.Service.SignalsLive` wire value). Consumers call this alongside
+    /// [`apply_vss_map`](Self::apply_vss_map).
+    pub fn apply_availability(&mut self, avail: Option<&HashMap<String, String>>) {
+        self.signals_live = crate::availability::signals_live_from_avail(avail);
     }
 }
 

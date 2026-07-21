@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod anomaly;
+pub mod availability;
 pub mod can;
 pub mod client;
 pub mod io;

@@ -2,9 +2,26 @@
 //! exact event sequences out. This is the offline test story — no bike, no
 //! network, no clock.
 
+use std::collections::HashMap;
+
 use sigma_racer_telemetry::anomaly::{AnomalyEngine, Edge, Severity};
+use sigma_racer_telemetry::availability::LIVENESS_PATHS;
 use sigma_racer_telemetry::protocol::Message;
 use sigma_racer_telemetry::{VehicleState, parse_ts_millis};
+
+/// Encode a scenario's `signals_live` intent as the sparse availability map the
+/// daemon would send: empty when live, core liveness paths marked unavailable
+/// when not.
+fn avail_for(state: &VehicleState) -> HashMap<String, String> {
+    if state.signals_live {
+        HashMap::new()
+    } else {
+        LIVENESS_PATHS
+            .iter()
+            .map(|p| (p.to_string(), "Unavailable".to_string()))
+            .collect()
+    }
+}
 
 /// Fixed session start (2026-07-18T10:00:00Z) so fixture timestamps are stable.
 const EPOCH_MS: i64 = 1_784_455_200_000;
@@ -40,12 +57,14 @@ impl RideBuilder {
         }
     }
 
-    /// Mutate the state, then emit one snapshot line `step_ms` later.
+    /// Mutate the state, then emit one snapshot line `step_ms` later. The
+    /// scenario's `signals_live` intent is carried as the per-signal `avail`
+    /// map, exactly as the daemon now emits it.
     fn step(&mut self, step_ms: i64, mutate: impl FnOnce(&mut VehicleState)) {
         mutate(&mut self.state);
         self.ts_ms += step_ms;
         self.seq += 1;
-        let mut msg = Message::snapshot(self.seq, &self.state);
+        let mut msg = Message::snapshot(self.seq, &self.state).with_avail(avail_for(&self.state));
         msg.ts = ts_string(self.ts_ms);
         self.lines.push(msg.to_line());
     }
@@ -77,6 +96,7 @@ fn replay(lines: &[String]) -> Vec<(String, Edge, i64)> {
         if let Some(data) = msg.vss_data() {
             state.apply_vss_map(data);
         }
+        state.apply_availability(msg.avail_data());
         let ts = parse_ts_millis(&msg.ts).expect("fixture ts parses");
         for ev in engine.observe(ts, &state) {
             out.push((ev.id.clone(), ev.edge, ev.ts_ms));
@@ -190,6 +210,7 @@ fn dtc_bump_and_side_stand_combo_raise() {
         if let Some(data) = msg.vss_data() {
             state.apply_vss_map(data);
         }
+        state.apply_availability(msg.avail_data());
         engine.observe(parse_ts_millis(&msg.ts).unwrap(), &state);
     }
     assert_eq!(

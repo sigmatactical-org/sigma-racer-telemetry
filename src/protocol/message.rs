@@ -26,6 +26,12 @@ pub struct Message {
     pub value: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uptime_ms: Option<u64>,
+    /// Sparse per-signal availability: VSS path → `"Stale"`/`"Unavailable"`,
+    /// listing only signals that are not fresh. Absent (and omitted from the
+    /// wire) when everything is available. Optional and additive, so 0.1
+    /// receivers that predate it simply ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avail: Option<HashMap<String, String>>,
 }
 
 impl Message {
@@ -41,6 +47,7 @@ impl Message {
             vss: None,
             value: None,
             uptime_ms: None,
+            avail: None,
         }
     }
 
@@ -56,6 +63,7 @@ impl Message {
             vss: None,
             value: None,
             uptime_ms: None,
+            avail: None,
         }
     }
 
@@ -81,6 +89,7 @@ impl Message {
             vss: Some(vss.into()),
             value: Some(value),
             uptime_ms: None,
+            avail: None,
         }
     }
 
@@ -96,6 +105,7 @@ impl Message {
             vss: None,
             value: None,
             uptime_ms: Some(uptime_ms),
+            avail: None,
         }
     }
 
@@ -121,9 +131,21 @@ impl Message {
         }
     }
 
+    /// Attach a sparse per-signal availability map. An empty map is treated as
+    /// "everything fresh" and left off the wire.
+    pub fn with_avail(mut self, avail: HashMap<String, String>) -> Self {
+        self.avail = (!avail.is_empty()).then_some(avail);
+        self
+    }
+
     /// The VSS payload for snapshot/update messages, `None` otherwise.
     pub fn vss_data(&self) -> Option<&HashMap<String, Value>> {
         self.data.as_ref()
+    }
+
+    /// The sparse per-signal availability map, when the sender attached one.
+    pub fn avail_data(&self) -> Option<&HashMap<String, String>> {
+        self.avail.as_ref()
     }
 }
 
@@ -174,6 +196,24 @@ mod tests {
         assert_eq!(
             parsed.data.as_ref().and_then(|d| d.get("state")),
             Some(&Value::from("raised"))
+        );
+    }
+
+    #[test]
+    fn availability_is_sparse_and_round_trips() {
+        // Empty map → nothing on the wire.
+        let bare = Message::snapshot(1, &VehicleState::idle()).with_avail(HashMap::new());
+        assert!(bare.avail.is_none());
+        assert!(!bare.to_line().contains("avail"));
+
+        // Non-empty map survives the round trip.
+        let mut stale = HashMap::new();
+        stale.insert("Vehicle.OBD.MAP".to_string(), "Stale".to_string());
+        let msg = Message::signal_update(2, HashMap::new()).with_avail(stale);
+        let parsed = Message::parse_validated(&msg.to_line()).expect("parses");
+        assert_eq!(
+            parsed.avail_data().and_then(|a| a.get("Vehicle.OBD.MAP")),
+            Some(&"Stale".to_string())
         );
     }
 
